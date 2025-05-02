@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using RVM.Scripts.Core.Items;
+using UnityEditor;
 
 namespace RVM.Scripts.Core.Quests
 {
@@ -7,6 +8,6 @@ namespace RVM.Scripts.Core.Quests
     {
         public int experience;
         public int gold;
-        public Item.Item item;
+        public Item item;
     }
 }

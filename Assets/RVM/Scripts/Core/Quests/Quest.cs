@@ -1,3 +1,4 @@
+using RVM.Scripts.Core.NPCS;
 using UnityEngine;
 
 namespace RVM.Scripts.Core.Quests
@@ -14,7 +15,7 @@ namespace RVM.Scripts.Core.Quests
 
         public QuestRequirements[] questRequirements;
         public QuestReward questReward;
-        public NPC.NPC questGiver;
+        public NPC questGiver;
         
     }
 }

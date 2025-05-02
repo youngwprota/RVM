@@ -30,11 +30,19 @@ MonoBehaviour:
   questStatus: 0
   questObjectives:
   - type: 1
-    targetID: Mashroom_purple
+    questReceiver: {fileID: 0}
+    targetItem: {fileID: 11400000, guid: 9e285ed2e7ac7424aacb388fd756d66b, type: 2}
+    targetID: 
     requiredAmount: 1
   - type: 1
-    targetID: Mashroom_yellow
+    questReceiver: {fileID: 0}
+    targetItem: {fileID: 11400000, guid: 3b2fcbf4581937b48961dea080f107fd, type: 2}
+    targetID: 
     requiredAmount: 1
+  questRequirements:
+  - doneQuests:
+    - {fileID: 11400000, guid: 34944b694a4004744a59849f6a99df06, type: 2}
+    completed: 0
   questReward:
     experience: 50
     gold: 150
