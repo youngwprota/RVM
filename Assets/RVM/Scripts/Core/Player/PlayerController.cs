@@ -1,4 +1,5 @@
 ﻿using RVM.Scripts.Core.Interfaces;
+using RVM.Scripts.Core.Player.Utils;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -12,6 +13,8 @@ namespace RVM.Scripts.Core.Player
 
         private PlayerInputActions _inputActions;
 
+        public Inventory playerInventory;
+        
         private void Awake()
         {
             _inputActions = new PlayerInputActions();
@@ -40,9 +43,13 @@ namespace RVM.Scripts.Core.Player
 
             if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactLayer))
             {
-                if (hit.collider.TryGetComponent<IInteractable>(out var target))
+                if (hit.collider.TryGetComponent<IInteractable>(out var targetNPC))
                 {
-                    target.Interact();
+                    targetNPC.Interact();
+                }
+                if (hit.collider.TryGetComponent<IItem>(out var targetItem))
+                {
+                    targetItem.Interact(playerInventory);
                 }
             }
         }
