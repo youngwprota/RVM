@@ -1,27 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using RVM.Scripts.Core.NPCS;
+using RVM.Scripts.Core.NPC;
+using RVM.Scripts.Core.Quests.Utils;
+using Unity.VisualScripting;
 using UnityEngine;
 
 namespace RVM.Scripts.Core.Quests
 {
     public class QuestManager : MonoBehaviour
     {
-        public static QuestManager Instance { get; private set; }
+        public static QuestManager Instance;
 
-        public Quest[] quests;
-        public List<Quest> activeQuests;
-        public List<Quest> availableQuests;
-        public List<Quest> unavailableQuests;
-        public List<Quest> readyQuests;
-        public List<Quest> doneQuests;
+        public List<Quest> allQuests = new List<Quest>();
+
+        public List<Quest> questsAvailableToGive = new List<Quest>();
+        public List<Quest> questsUnavailableToGive = new List<Quest>();
+        public List<Quest> questsAvailableToReceive = new List<Quest>();
+        public List<Quest> questsUnavailableToReceive = new List<Quest>();
+
+        public List<Quest> questsActive = new List<Quest>();
+        public List<Quest> questsCompleted = new List<Quest>();
+        public List<Quest> questsPrevious = new List<Quest>();
 
         public Quest lastQuest;
 
+        private readonly Dictionary<Quest, Dictionary<string, int>> _collectQuestDictionary = new Dictionary<Quest, Dictionary<string, int>>();
+
         public void Awake()
         {
-            if (Instance != this && Instance != null)
+            if (Instance != null && Instance != this)
             {
                 Destroy(gameObject);
                 return;
@@ -29,123 +37,352 @@ namespace RVM.Scripts.Core.Quests
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+        }
 
-            foreach (var quest in quests)
+        public void Start()
+        {
+            InitializeQuestsToGive();
+            InitializeQuestsToReceive();
+
+            UpdateNpcQuests();
+        }
+
+        private void UpdateNpcQuests()
+        {
+            foreach (var questNpcID in NpcManager.Instance.QuestNpcsID)
             {
-                if (quest.questStatus == QuestStatus.Active)
+                GetNpcQuestsToGive(questNpcID);
+                GetNpcQuestsToReceive(questNpcID);
+                NpcManager.Instance.GetQuestNpcByID(questNpcID).UpdateQuestIcon();
+            }
+        }
+
+        private void GetNpcQuestsToGive(string npcID)
+        {
+            foreach (var quest in questsAvailableToGive)
+            {
+                if (quest.questGiverID == npcID && CheckQuestStatus(quest) == QuestStatus.Untaken)
                 {
-                    activeQuests.Add(quest);
+                    if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Contains(quest))
+                    {
+                        if (NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToGive.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToGive.Remove(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Add(quest);
+                    }
                 }
+            }
 
-                if (quest.questStatus == QuestStatus.Ready)
+            foreach (var quest in questsUnavailableToGive)
+            {
+                if (quest.questGiverID == npcID)
                 {
-                    readyQuests.Add(quest);
+                    if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToGive.Contains(quest))
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToGive.Add(quest);
                 }
+            }
 
-
-                if (quest.questRequirements.Length == 0 && quest.questStatus == QuestStatus.Untaken)
+            foreach (var quest in questsCompleted)
+            {
+                if (quest.questGiverID == npcID)
                 {
-                    availableQuests.Add(quest);
+                    if (NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Contains(quest))
+                    {
+                        if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Add(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Remove(quest);
+                    }
+                }
+            }
+
+            foreach (var quest in questsActive)
+            {
+                if (quest.questGiverID == npcID)
+                {
+                    if (NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Contains(quest))
+                    {
+                        if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Add(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Remove(quest);
+                    }
+                }
+            }
+
+            foreach (var quest in questsPrevious)
+            {
+                if (quest.questGiverID == npcID)
+                {
+                    if (NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Contains(quest))
+                    {
+                        if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsGiven.Add(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToGive.Remove(quest);
+                    }
+                }
+            }
+        }
+
+        private void GetNpcQuestsToReceive(string npcID)
+        {
+            foreach (var quest in questsAvailableToReceive)
+            {
+                if (quest.questReceiverID == npcID && CheckQuestStatus(quest) == QuestStatus.Ready)
+                {
+                    if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToReceive.Contains(quest))
+                    {
+                        if (NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToReceive.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToReceive.Remove(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToReceive.Add(quest);
+                    }
+                }
+            }
+
+            foreach (var quest in questsUnavailableToReceive)
+            {
+                if (quest.questReceiverID == npcID)
+                {
+                    if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToReceive.Contains(quest))
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsUnavailableToReceive.Add(quest);
+                }
+            }
+
+            foreach (var quest in questsPrevious)
+            {
+                if (quest.questReceiverID == npcID)
+                {
+                    if (NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToReceive.Contains(quest))
+                    {
+                        if (!NpcManager.Instance.GetQuestNpcByID(npcID).questsReceived.Contains(quest))
+                        {
+                            NpcManager.Instance.GetQuestNpcByID(npcID).questsReceived.Add(quest);
+                        }
+
+                        NpcManager.Instance.GetQuestNpcByID(npcID).questsAvailableToReceive.Remove(quest);
+                    }
+                }
+            }
+        }
+
+        private void InitializeQuestsToGive()
+        {
+            foreach (var quest in allQuests)
+            {
+                if (CheckQuestAvailability(quest) && CheckQuestStatus(quest) == QuestStatus.Untaken)
+                {
+                    questsAvailableToGive.Add(quest);
                 }
                 else
                 {
-                    foreach (var req in quest.questRequirements)
-                    {
-                        if (quest.questStatus == QuestStatus.Untaken)
-                        {
-                            if (req.completed)
-                            {
-                                availableQuests.Add(quest);
-                            }
-                            else
-                            {
-                                unavailableQuests.Add(quest);
-                            }
-                        }
-                    }
+                    questsUnavailableToGive.Add(quest);
                 }
             }
         }
-        
-        public void AddQuest(Quest quest)
-        {
-            availableQuests.Remove(quest);
 
-            foreach (var objective in quest.questObjectives)
+        private void InitializeQuestsToReceive()
+        {
+            foreach (var quest in allQuests)
             {
-                if (objective is { type: ObjectiveType.Talk })
+                if (CheckQuestAvailability(quest) && CheckQuestStatus(quest) == QuestStatus.Ready)
                 {
-                    quest.questStatus = QuestStatus.Ready;
-                    readyQuests.Add(quest);
+                    questsAvailableToReceive.Add(quest);
                 }
-
-                if (objective is { type: ObjectiveType.Collect })
+                else
                 {
-                    quest.questStatus = QuestStatus.Active;
-                    activeQuests.Add(quest);
+                    questsUnavailableToReceive.Add(quest);
                 }
+            }
+        }
 
-                if (objective is { type: ObjectiveType.Explore })
-                {
-                    quest.questStatus = QuestStatus.Active;
-                    activeQuests.Add(quest);
-                }
+        private QuestStatus CheckQuestStatus(Quest quest)
+        {
+            return quest.questStatus;
+        }
 
-                if (objective is { type: ObjectiveType.Kill })
+        private bool CheckQuestAvailability(Quest quest)
+        {
+            if (quest.questRequirements.doneQuests.Length == 0)
+            {
+                return true;
+            }
+
+            foreach (var doneQuest in quest.questRequirements.doneQuests)
+            {
+                if (doneQuest.questStatus != QuestStatus.Done)
                 {
-                    quest.questStatus = QuestStatus.Active;
-                    activeQuests.Add(quest);
+                    return false;
                 }
             }
 
-            OnQuestTaken?.Invoke(quest);
+            return true;
         }
 
-        public void BringQuest(Quest quest)
+        public void GiveQuestToPlayer(Quest quest)
         {
-            if (quest.questStatus != QuestStatus.Ready) return;
+            if (!questsAvailableToGive.Contains(quest) || questsActive.Contains(quest) ||
+                CheckQuestStatus(quest) != QuestStatus.Untaken || !CheckQuestAvailability(quest)) return;
 
-            UpdateQuests(quest); 
-    
-            doneQuests.Add(quest);
-            readyQuests.Remove(quest);
-            
-            OnQuestBring?.Invoke(quest);
+            questsAvailableToGive.Remove(quest);
+
+            switch (quest.questObjective.type)
+            {
+                case ObjectiveType.Talk:
+                    HandleGiveTalkQuest(quest);
+                    break;
+                case ObjectiveType.Collect:
+                    HandGiveCollectQuest(quest);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            UpdateNpcQuests();
         }
 
-        public void UpdateQuests(Quest quest)
+        public void ReceiveQuestFromPlayer(Quest quest)
         {
+            if (!questsAvailableToReceive.Contains(quest) || !questsCompleted.Contains(quest) ||
+                CheckQuestStatus(quest) != QuestStatus.Ready) return;
+
+            questsAvailableToReceive.Remove(quest);
             quest.questStatus = QuestStatus.Done;
-            for (int i = unavailableQuests.Count - 1; i >= 0; i--)
+
+            if (!questsPrevious.Contains(quest) && questsCompleted.Contains(quest))
             {
-                var q = unavailableQuests[i];
-                foreach (var req in q.questRequirements)
+                questsPrevious.Add(quest);
+                questsCompleted.Remove(quest);
+            }
+
+            if (quest.questObjective.type == ObjectiveType.Collect)
+            {
+                OnReceiveCollectQuest?.Invoke(quest);
+            }
+            
+            OnQuestReceived?.Invoke(quest);
+            UpdateQuestsAvailability();
+            UpdateNpcQuests();
+        }
+
+        private void UpdateQuestsAvailability()
+        {
+            foreach (var quest in allQuests)
+            {
+                var available = true;
+                foreach (var doneQuest in quest.questRequirements.doneQuests)
                 {
-                    bool done = true;
-                    foreach (var doneQuest in req.doneQuests)
+                    if (doneQuest.questStatus != QuestStatus.Done)
                     {
-                        if (doneQuest.questStatus != QuestStatus.Done)
-                        {
-                            done = false;
-                            break;
-                        }
+                        available = false;
                     }
+                }
 
-                    req.completed = done;
-
-                    if (req.completed)
+                quest.available = available;
+                if (available)
+                {
+                    if (!questsAvailableToGive.Contains(quest) && questsUnavailableToGive.Contains(quest))
                     {
-                        availableQuests.Add(q);
-                        unavailableQuests.RemoveAt(i); 
-                        break; 
+                        questsAvailableToGive.Add(quest);
+                        questsUnavailableToGive.Remove(quest);
                     }
                 }
             }
-
         }
 
-        public event Action<Quest> OnQuestTaken;
-        public event Action<Quest> OnQuestBring;
+        private void HandleGiveTalkQuest(Quest quest)
+        {
+            quest.questStatus = QuestStatus.Ready;
+
+            questsUnavailableToReceive.Remove(quest);
+            questsAvailableToReceive.Add(quest);
+            questsCompleted.Add(quest);
+        }
+
+        private void HandGiveCollectQuest(Quest quest)
+        {
+            quest.questStatus = QuestStatus.Active;
+            questsActive.Add(quest);
+
+
+            if (quest.questObjective.itemsID.Count != quest.questObjective.itemsCount.Count)
+            {
+                Debug.LogError("Количество ID NPC не совпадает с количеством NPC объектов");
+                return;
+            }
+
+            for (var i = 0; i < quest.questObjective.itemsID.Count; i++)
+            {
+                quest.questObjective.Items[quest.questObjective.itemsID[i]] = quest.questObjective.itemsCount[i];
+            }
+
+            var progress = new Dictionary<string, int>();
+
+            foreach (var kvp in quest.questObjective.Items)
+            {
+                progress[kvp.Key] = 0;
+            }
+
+            _collectQuestDictionary[quest] = progress;
+
+
+            OnGiveCollectQuest?.Invoke(quest);
+        }
+
+        public void OnCollectQuestItemCollected(string itemID, int itemCount, Quest quest)
+        {
+            if (!_collectQuestDictionary.ContainsKey(quest)) return;
+            if (_collectQuestDictionary[quest][itemID] == itemCount) return;
+
+            _collectQuestDictionary[quest][itemID] = itemCount;
+            if (_collectQuestDictionary[quest][itemID] == quest.questObjective.Items[itemID])
+            {
+                OnQuestItemCollected?.Invoke(itemID);
+            }
+
+            var allItemsCollected = true;
+
+            foreach (var (targetID, targetCount) in quest.questObjective.Items)
+            {
+                if (!_collectQuestDictionary[quest].ContainsKey(targetID) || _collectQuestDictionary[quest][targetID] < targetCount)
+                {
+                    allItemsCollected = false;
+                    break;
+                }
+            }
+
+            if (allItemsCollected)
+            {
+                quest.questStatus = QuestStatus.Ready;
+                
+                questsUnavailableToReceive.Remove(quest);
+                questsAvailableToReceive.Add(quest);
+                
+                questsActive.Remove(quest);
+                questsCompleted.Add(quest);
+                UpdateNpcQuests();
+            }
+        }
+
+        public event Action<Quest> OnGiveCollectQuest;
+        public event Action<Quest> OnReceiveCollectQuest;
+        //ItemID required
+        public event Action<string> OnQuestItemCollected;
+        
+        // Calculate rewards
+        public event Action<Quest> OnQuestReceived;
+
 
     }
 }
